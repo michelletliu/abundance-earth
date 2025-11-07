@@ -8,6 +8,93 @@ let scrollPosY = 0;
 let overlayContent = null;
 let isSyncingFromWindow = false;
 let isSyncingFromOverlay = false;
+let scrollSpacer = null;
+
+const MOBILE_VIEWPORT_BREAKPOINT = 768;
+const DEFAULT_SCROLL_SPACER_HEIGHT = "400vh";
+
+function isCoarsePointerDevice() {
+  if (typeof navigator !== "undefined" && typeof navigator.maxTouchPoints === "number") {
+    if (navigator.maxTouchPoints > 1) {
+      return true;
+    }
+  }
+
+  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+    try {
+      if (window.matchMedia("(pointer: coarse)").matches) {
+        return true;
+      }
+    } catch {
+      // ignore matchMedia support issues
+    }
+  }
+
+  return false;
+}
+
+function computeBidirectionalScrollSyncEnabled() {
+  const hasCoarsePointer = isCoarsePointerDevice();
+  const isNarrowViewport = window.innerWidth <= MOBILE_VIEWPORT_BREAKPOINT;
+  return !(hasCoarsePointer || isNarrowViewport);
+}
+
+let bidirectionalScrollSyncEnabled = computeBidirectionalScrollSyncEnabled();
+
+function updateScrollSpacerHeight() {
+  if (scrollSpacer) {
+    if (bidirectionalScrollSyncEnabled) {
+      scrollSpacer.style.display = "block";
+      scrollSpacer.style.height = DEFAULT_SCROLL_SPACER_HEIGHT;
+    } else {
+      scrollSpacer.style.display = "none";
+      scrollSpacer.style.height = "0px";
+    }
+  }
+
+  if (document.body) {
+    const spacerHeight = bidirectionalScrollSyncEnabled ? DEFAULT_SCROLL_SPACER_HEIGHT : "0px";
+    document.body.style.setProperty("--scroll-spacer-height", spacerHeight);
+  }
+}
+
+function applyScrollBlockingStyles() {
+  if (!document.body) return;
+  const overflowValue = bidirectionalScrollSyncEnabled ? "" : "hidden";
+  const heightValue = bidirectionalScrollSyncEnabled ? "" : "100%";
+  document.documentElement.style.overflowY = overflowValue;
+  document.documentElement.style.height = heightValue;
+  document.body.style.overflowY = overflowValue;
+  document.body.style.height = heightValue;
+}
+
+function refreshScrollSyncMode() {
+  const nextEnabled = computeBidirectionalScrollSyncEnabled();
+  if (nextEnabled === bidirectionalScrollSyncEnabled) return;
+
+  bidirectionalScrollSyncEnabled = nextEnabled;
+  updateScrollSpacerHeight();
+  applyScrollBlockingStyles();
+
+  if (bidirectionalScrollSyncEnabled) {
+    syncScrollFromWindow();
+  }
+}
+
+try {
+  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+    const coarseMediaQuery = window.matchMedia("(pointer: coarse)");
+    if (coarseMediaQuery) {
+      if (typeof coarseMediaQuery.addEventListener === "function") {
+        coarseMediaQuery.addEventListener("change", refreshScrollSyncMode);
+      } else if (typeof coarseMediaQuery.addListener === "function") {
+        coarseMediaQuery.addListener(refreshScrollSyncMode);
+      }
+    }
+  }
+} catch {
+  // ignore matchMedia listener errors
+}
 const w = window.innerWidth;
 const h = window.innerHeight;
 const scene = new THREE.Scene();
@@ -28,7 +115,7 @@ document.body.appendChild(renderer.domElement);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 
-const EARTH_MAX_SCALE = 3.5;
+const EARTH_MAX_SCALE = 3;
 const EARTH_MIN_SCALE = 1.5;
 const EARTH_START_POSITION = new THREE.Vector3(0, -4, 3.7);
 const EARTH_END_POSITION = new THREE.Vector3(0, 0, -8);
@@ -134,14 +221,16 @@ function attachOverlayDragHandlers(element) {
   element.addEventListener("lostpointercapture", handleLostPointerCapture);
 }
 
-let scrollSpacer = document.getElementById("scroll-spacer");
+scrollSpacer = document.getElementById("scroll-spacer");
 if (!scrollSpacer) {
   scrollSpacer = document.createElement("div");
   scrollSpacer.id = "scroll-spacer";
-  scrollSpacer.style.height = "400vh";
+  scrollSpacer.style.height = DEFAULT_SCROLL_SPACER_HEIGHT;
   scrollSpacer.style.pointerEvents = "none";
   document.body.appendChild(scrollSpacer);
 }
+updateScrollSpacerHeight();
+applyScrollBlockingStyles();
 const detail = 12;
 const loader = new THREE.TextureLoader();
 const geometry = new THREE.IcosahedronGeometry(1, detail);
@@ -224,30 +313,35 @@ function getMaxWindowScroll() {
 }
 
 function syncScrollFromWindow() {
-  if (isSyncingFromOverlay) return;
-
-  isSyncingFromWindow = true;
   const maxWindowScroll = getMaxWindowScroll();
   const ratio = maxWindowScroll > 0 ? window.scrollY / maxWindowScroll : 0;
   scrollPosY = ratio;
 
-  if (overlayContent) {
-    const maxOverlayScroll = overlayContent.scrollHeight - overlayContent.clientHeight;
-    if (maxOverlayScroll > 0) {
-      overlayContent.scrollTop = ratio * maxOverlayScroll;
-    }
+  if (!overlayContent) return;
+  if (!bidirectionalScrollSyncEnabled) return;
+  if (isSyncingFromOverlay) return;
+
+  isSyncingFromWindow = true;
+
+  const maxOverlayScroll = overlayContent.scrollHeight - overlayContent.clientHeight;
+  if (maxOverlayScroll > 0) {
+    overlayContent.scrollTop = ratio * maxOverlayScroll;
   }
 
   isSyncingFromWindow = false;
 }
 
 function syncScrollFromOverlay() {
-  if (!overlayContent || isSyncingFromWindow) return;
+  if (!overlayContent) return;
 
-  isSyncingFromOverlay = true;
   const maxOverlayScroll = overlayContent.scrollHeight - overlayContent.clientHeight;
   const ratio = maxOverlayScroll > 0 ? overlayContent.scrollTop / maxOverlayScroll : 0;
   scrollPosY = ratio;
+
+  if (!bidirectionalScrollSyncEnabled) return;
+  if (isSyncingFromWindow) return;
+
+  isSyncingFromOverlay = true;
 
   const maxWindowScroll = getMaxWindowScroll();
   if (maxWindowScroll > 0) {
@@ -280,6 +374,7 @@ function handleWindowResize () {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  refreshScrollSyncMode();
   syncScrollFromWindow();
 }
 window.addEventListener('resize', handleWindowResize, false);
