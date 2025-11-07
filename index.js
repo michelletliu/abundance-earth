@@ -116,7 +116,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 
 const EARTH_MAX_SCALE = 3;
-const EARTH_MIN_SCALE = 1.5;
+const EARTH_MIN_SCALE = 2;
 const EARTH_START_POSITION = new THREE.Vector3(0, -4, 3.7);
 const EARTH_END_POSITION = new THREE.Vector3(0, 0, -8);
 const CAMERA_START_LOOK_OFFSET = new THREE.Vector3(0, 4, -0.5);
