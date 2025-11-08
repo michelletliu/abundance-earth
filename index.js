@@ -129,6 +129,8 @@ earthGroup.rotation.z = -23.4 * Math.PI / 180;
 earthGroup.position.copy(EARTH_START_POSITION);
 earthGroup.scale.setScalar(EARTH_MAX_SCALE);
 scene.add(earthGroup);
+
+
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableZoom = false;
 controls.enablePan = false;
@@ -244,12 +246,14 @@ const material = new THREE.MeshPhongMaterial({
 const earthMesh = new THREE.Mesh(geometry, material);
 earthGroup.add(earthMesh);
 
+
 const lightsMat = new THREE.MeshBasicMaterial({
   map: loader.load("./textures/8081_earthlights10k.jpg"),
   blending: THREE.AdditiveBlending,
 });
 const lightsMesh = new THREE.Mesh(geometry, lightsMat);
 earthGroup.add(lightsMesh);
+
 
 const cloudsMat = new THREE.MeshStandardMaterial({
   map: loader.load("./textures/04_earthcloudmap.jpg"),
@@ -263,10 +267,12 @@ const cloudsMesh = new THREE.Mesh(geometry, cloudsMat);
 cloudsMesh.scale.setScalar(1.003);
 earthGroup.add(cloudsMesh);
 
+
 const fresnelMat = getFresnelMat({ opacity: 0.5 });
 const glowMesh = new THREE.Mesh(geometry, fresnelMat);
 glowMesh.scale.setScalar(1.009);
 earthGroup.add(glowMesh);
+
 
 const stars = getStarfield({numStars: 2000});
 scene.add(stars);
@@ -281,10 +287,13 @@ const targetLookAt = new THREE.Vector3();
 
 function animate() {
   requestAnimationFrame(animate);
+
   const scrollFactor = THREE.MathUtils.clamp(scrollPosY, 0, 1);
+
   targetEarthPos.lerpVectors(EARTH_START_POSITION, EARTH_END_POSITION, scrollFactor);
   targetLookAt.lerpVectors(CAMERA_START_LOOK_TARGET, CAMERA_END_LOOK_TARGET, scrollFactor);
   const targetScale = THREE.MathUtils.lerp(EARTH_MAX_SCALE, EARTH_MIN_SCALE, scrollFactor);
+
   const targetStarsZ = scrollPosY * 8;
   earthMesh.rotation.y += 0.002;
   lightsMesh.rotation.y += 0.002;
@@ -298,6 +307,8 @@ function animate() {
   earthGroup.scale.x += (targetScale - earthGroup.scale.x) * rate;
   earthGroup.scale.y += (targetScale - earthGroup.scale.y) * rate;
   earthGroup.scale.z += (targetScale - earthGroup.scale.z) * rate;
+
+
   controls.target.x += (targetLookAt.x - controls.target.x) * rate;
   controls.target.y += (targetLookAt.y - controls.target.y) * rate;
   controls.target.z += (targetLookAt.z - controls.target.z) * rate;
