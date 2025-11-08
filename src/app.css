@@ -18,7 +18,7 @@ body {
   margin: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  --scroll-spacer-height: 400vh;
+  --scroll-spacer-height: 0vh;
 }
 
 body::after {
