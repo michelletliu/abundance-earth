@@ -184,6 +184,12 @@ function computeActiveTextureSet() {
   return prefersLowRes ? LOW_RES_TEXTURE_SET : HIGH_RES_TEXTURE_SET;
 }
 
+function getTargetPixelRatio() {
+  const devicePixelRatio = window.devicePixelRatio || 1;
+  const maxRatio = isCoarsePointerDevice() ? 1.5 : 2;
+  return Math.min(devicePixelRatio, maxRatio);
+}
+
 let activeTextureSet = computeActiveTextureSet();
 
 let bidirectionalScrollSyncEnabled = computeBidirectionalScrollSyncEnabled();
@@ -250,6 +256,7 @@ const camera = new THREE.PerspectiveCamera(75, w / h, 0.1, 1000);
 camera.position.z = 5;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(w, h);
+renderer.setPixelRatio(getTargetPixelRatio());
 renderer.setClearColor(0x0C0C0C, 1); // replace 0x0f172a with any hex color you like
 renderer.autoClear = false;
 renderer.domElement.style.position = "fixed";
@@ -280,7 +287,7 @@ bloomPass.strength = 4;
 bloomPass.radius = 0.5;
 
 const bloomComposer = new EffectComposer(renderer);
-bloomComposer.setPixelRatio(window.devicePixelRatio ? window.devicePixelRatio : 1);
+bloomComposer.setPixelRatio(getTargetPixelRatio());
 bloomComposer.setSize(window.innerWidth, window.innerHeight);
 bloomComposer.addPass(renderScene);
 bloomComposer.addPass(bloomPass);
@@ -397,9 +404,7 @@ if (!scrollSpacer) {
 updateScrollSpacerHeight();
 applyScrollBlockingStyles();
 const detail = 12;
-const loader = new THREE.TextureLoader();
 const geometry = new THREE.IcosahedronGeometry(1, detail);
-const earthMeshSets = [];
 
 function prepareFadeTarget(target) {
   const delay = target.dataset.fadeDelay;
@@ -1065,8 +1070,9 @@ if (!attachOverlayScrollListener()) {
 function handleWindowResize () {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
+  renderer.setPixelRatio(getTargetPixelRatio());
   renderer.setSize(window.innerWidth, window.innerHeight);
-  bloomComposer.setPixelRatio(window.devicePixelRatio ? window.devicePixelRatio : 1);
+  bloomComposer.setPixelRatio(getTargetPixelRatio());
   bloomComposer.setSize(window.innerWidth, window.innerHeight);
   bloomPass.resolution.set(window.innerWidth, window.innerHeight);
   applyEarthScaleSettings();
