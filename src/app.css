@@ -178,6 +178,26 @@ body::after {
   transform: scale(0.97);
 }
 
+@media (max-width: 768px) {
+  :root {
+    --overlay-spacer-height: 0vh;
+  }
+
+  .overlay__hero {
+    min-height: clamp(520px, 100vh, 100vh);
+  }
+
+  .overlay__stack {
+    min-height: clamp(360px, 72vh, 82vh);
+    padding-bottom: clamp(3rem, 9vh, 4rem);
+    gap: clamp(0.9rem, 2.6vh, 1.15rem);
+  }
+
+  .overlay__spacer {
+    height: var(--overlay-spacer-height);
+  }
+}
+
 @media (max-width: 480px) {
   .overlay__content {
     padding: 1.5rem 1.25rem;
