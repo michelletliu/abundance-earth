@@ -30,6 +30,41 @@ let secondEarthGroup = null;
 let thirdEarthGroup = null;
 let controls = null;
 
+const HIGH_RES_TEXTURE_SET = {
+  surfaceMap: "./textures/8081_earthmap10k.jpg",
+  specularMap: "./textures/8081_earthspec10k.jpg",
+  bumpMap: "./textures/8081_earthbump10k.jpg",
+  lightsMap: "./textures/8081_earthlights10k.jpg",
+  bumpScale: 0.04,
+};
+
+const LOW_RES_TEXTURE_SET = {
+  surfaceMap: "./textures/8081_earthmap2k.jpg",
+  specularMap: "./textures/8081_earthspec2k.jpg",
+  bumpMap: "./textures/8081_earthbump2k.jpg",
+  lightsMap: "./textures/8081_earthlights2k.jpg",
+  bumpScale: 0.025,
+};
+
+const CLOUD_TEXTURES = {
+  map: "./textures/04_earthcloudmap.jpg",
+  alphaMap: "./textures/05_earthcloudmaptrans.jpg",
+};
+
+const textureCache = new Map();
+const loader = new THREE.TextureLoader();
+const earthMeshSets = [];
+
+function loadTexture(path) {
+  if (!path) return null;
+  if (textureCache.has(path)) {
+    return textureCache.get(path);
+  }
+  const texture = loader.load(path);
+  textureCache.set(path, texture);
+  return texture;
+}
+
 const MOBILE_VIEWPORT_BREAKPOINT = 768;
 const DEFAULT_SCROLL_SPACER_HEIGHT = "260vh";
 const SCROLL_SMOOTHING_ALPHA = 0.08;
@@ -143,6 +178,14 @@ function computeBidirectionalScrollSyncEnabled() {
   return !(hasCoarsePointer || isNarrowViewport);
 }
 
+function computeActiveTextureSet() {
+  const prefersLowRes =
+    window.innerWidth <= MOBILE_VIEWPORT_BREAKPOINT || isCoarsePointerDevice();
+  return prefersLowRes ? LOW_RES_TEXTURE_SET : HIGH_RES_TEXTURE_SET;
+}
+
+let activeTextureSet = computeActiveTextureSet();
+
 let bidirectionalScrollSyncEnabled = computeBidirectionalScrollSyncEnabled();
 
 function updateScrollSpacerHeight() {
@@ -179,6 +222,7 @@ function refreshScrollSyncMode() {
   bidirectionalScrollSyncEnabled = nextEnabled;
   updateScrollSpacerHeight();
   applyScrollBlockingStyles();
+  refreshActiveTextureSet();
 
   if (bidirectionalScrollSyncEnabled) {
     syncScrollFromWindow();
@@ -468,18 +512,26 @@ function initOverlayFadeAnimations() {
 }
 
 function populateEarthGroup(group, { shouldFadeIn = false } = {}) {
+  const {
+    surfaceMap,
+    specularMap,
+    bumpMap,
+    lightsMap,
+    bumpScale,
+  } = activeTextureSet;
+
   const surfaceMaterial = new THREE.MeshPhongMaterial({
-    map: loader.load("./textures/8081_earthmap10k.jpg"),
-    specularMap: loader.load("./textures/8081_earthspec10k.jpg"),
-    bumpMap: loader.load("./textures/8081_earthbump10k.jpg"),
-    bumpScale: 0.04,
+    map: loadTexture(surfaceMap),
+    specularMap: loadTexture(specularMap),
+    bumpMap: loadTexture(bumpMap),
+    bumpScale,
   });
   const baseEarthOpacity = surfaceMaterial.opacity;
   const earthMesh = new THREE.Mesh(geometry, surfaceMaterial);
   group.add(earthMesh);
 
   const lightsMaterial = new THREE.MeshBasicMaterial({
-    map: loader.load("./textures/8081_earthlights10k.jpg"),
+    map: loadTexture(lightsMap),
     blending: THREE.AdditiveBlending,
   });
   const baseLightsOpacity = lightsMaterial.opacity;
@@ -487,11 +539,11 @@ function populateEarthGroup(group, { shouldFadeIn = false } = {}) {
   group.add(lightsMesh);
 
   const cloudsMaterial = new THREE.MeshStandardMaterial({
-    map: loader.load("./textures/04_earthcloudmap.jpg"),
+    map: loadTexture(CLOUD_TEXTURES.map),
     transparent: true,
     opacity: 0.8,
     blending: THREE.AdditiveBlending,
-    alphaMap: loader.load("./textures/05_earthcloudmaptrans.jpg"),
+    alphaMap: loadTexture(CLOUD_TEXTURES.alphaMap),
   });
   const baseCloudsOpacity = cloudsMaterial.opacity;
   const cloudsMesh = new THREE.Mesh(geometry, cloudsMaterial);
@@ -552,6 +604,46 @@ function enableBloomLayer(object) {
 }
 
 enableBloomLayer(earthGroup);
+
+function applyTextureSetToEarthSet(earthSet, textureSet) {
+  if (!earthSet) return;
+
+  const {
+    surfaceMap,
+    specularMap,
+    bumpMap,
+    lightsMap,
+    bumpScale,
+  } = textureSet;
+
+  const { earthMesh, lightsMesh } = earthSet;
+
+  const earthMaterial = earthMesh.material;
+  if (earthMaterial) {
+    earthMaterial.map = loadTexture(surfaceMap);
+    earthMaterial.specularMap = loadTexture(specularMap);
+    earthMaterial.bumpMap = loadTexture(bumpMap);
+    earthMaterial.bumpScale = bumpScale;
+    earthMaterial.needsUpdate = true;
+  }
+
+  const lightsMaterial = lightsMesh.material;
+  if (lightsMaterial) {
+    lightsMaterial.map = loadTexture(lightsMap);
+    lightsMaterial.needsUpdate = true;
+  }
+}
+
+function refreshActiveTextureSet(options = {}) {
+  const { force = false } = options;
+  const nextTextureSet = computeActiveTextureSet();
+  if (!force && nextTextureSet === activeTextureSet) {
+    return;
+  }
+
+  activeTextureSet = nextTextureSet;
+  earthMeshSets.forEach((earthSet) => applyTextureSetToEarthSet(earthSet, activeTextureSet));
+}
 
 secondEarthGroup = new THREE.Group();
 secondEarthGroup.rotation.z = earthGroup.rotation.z;
@@ -979,6 +1071,7 @@ function handleWindowResize () {
   bloomPass.resolution.set(window.innerWidth, window.innerHeight);
   applyEarthScaleSettings();
   refreshScrollSyncMode();
+  refreshActiveTextureSet();
   syncScrollFromWindow();
 }
 window.addEventListener('resize', handleWindowResize, false);
