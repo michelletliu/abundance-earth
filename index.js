@@ -26,9 +26,15 @@ let overlayFadeObserver = null;
 let hasWindowScrollInteracted = false;
 let hasOverlayScrollInteracted = false;
 let earthGroup = null;
-let secondEarthGroup = null;
-let thirdEarthGroup = null;
+const earthCloneGroups = [];
 let controls = null;
+
+const CAMERA_FOV = 34;
+const MOBILE_CAMERA_FOV = 42;
+const CAMERA_NEAR = 0.1;
+const CAMERA_FAR = 1000;
+const CAMERA_POSITION_DESKTOP = new THREE.Vector3(0, 0, 16);
+const CAMERA_POSITION_MOBILE = new THREE.Vector3(0, 0, 12);
 
 const HIGH_RES_TEXTURE_SET = {
   surfaceMap: "./textures/8081_earthmap10k.jpg",
@@ -136,14 +142,12 @@ function applyEarthScaleSettings() {
     earthGroup.scale.setScalar(EARTH_MAX_SCALE);
   }
 
-  const applyCloneTransform = (group, direction = 1) => {
+  earthCloneGroups.forEach(({ group, direction, offsetMultiplier }) => {
     if (!group) return;
     group.position.copy(EARTH_START_POSITION);
-    group.position.x += CLONE_OFFSET_X * direction;
+    group.position.x += CLONE_OFFSET_X * direction * offsetMultiplier;
     group.scale.setScalar(EARTH_MAX_SCALE);
-  };
-  applyCloneTransform(secondEarthGroup, 1);
-  applyCloneTransform(thirdEarthGroup, -1);
+  });
 
   if (controls) {
     controls.target.copy(CAMERA_START_LOOK_TARGET);
@@ -252,8 +256,7 @@ try {
 const w = window.innerWidth;
 const h = window.innerHeight;
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, w / h, 0.1, 1000);
-camera.position.z = 5;
+const camera = new THREE.PerspectiveCamera(CAMERA_FOV, w / h, CAMERA_NEAR, CAMERA_FAR);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(w, h);
 renderer.setPixelRatio(getTargetPixelRatio());
@@ -271,6 +274,20 @@ lastWindowScrollY = window.scrollY || 0;
 // THREE.ColorManagement.enabled = true;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+
+function applyCameraLayoutSettings() {
+  const useMobileLayout = window.innerWidth <= MOBILE_VIEWPORT_BREAKPOINT;
+  const targetPosition = useMobileLayout ? CAMERA_POSITION_MOBILE : CAMERA_POSITION_DESKTOP;
+  const targetFov = useMobileLayout ? MOBILE_CAMERA_FOV : CAMERA_FOV;
+
+  camera.fov = targetFov;
+  camera.position.copy(targetPosition);
+  camera.updateProjectionMatrix();
+
+  if (controls) {
+    controls.update();
+  }
+}
 
 const DEFAULT_LAYER = 0;
 const BLOOM_LAYER = 1;
@@ -294,6 +311,7 @@ bloomComposer.addPass(bloomPass);
 
 const CLONE_FADE_START = 0.88;
 const CLONE_FADE_END = 1.0;
+const CLONE_COUNT_PER_SIDE = 3;
 earthGroup = new THREE.Group();
 earthGroup.rotation.z = -23.4 * Math.PI / 180;
 earthGroup.position.copy(EARTH_START_POSITION);
@@ -306,6 +324,7 @@ controls.enableZoom = false;
 controls.enablePan = false;
 controls.target.copy(CAMERA_START_LOOK_TARGET);
 controls.update();
+applyCameraLayoutSettings();
 
 const overlayDragState = {
   isDragging: false,
@@ -405,6 +424,7 @@ updateScrollSpacerHeight();
 applyScrollBlockingStyles();
 const detail = 12;
 const geometry = new THREE.IcosahedronGeometry(1, detail);
+const atmosphereGeometry = new THREE.SphereGeometry(1.02, 64, 64);
 
 function prepareFadeTarget(target) {
   const delay = target.dataset.fadeDelay;
@@ -516,7 +536,7 @@ function initOverlayFadeAnimations() {
   setTimeout(triggerVisibleTargets, 120);
 }
 
-function populateEarthGroup(group, { shouldFadeIn = false } = {}) {
+function populateEarthGroup(group, { shouldFadeIn = false, withAtmosphereOverlay = false } = {}) {
   const {
     surfaceMap,
     specularMap,
@@ -562,6 +582,22 @@ function populateEarthGroup(group, { shouldFadeIn = false } = {}) {
   glowMesh.scale.setScalar(1.0025);
   group.add(glowMesh);
 
+  let atmosphereMesh = null;
+  let baseAtmosphereOpacity = 0;
+  if (withAtmosphereOverlay) {
+    const atmosphereMaterial = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(0x3b82f6),
+      transparent: true,
+      opacity: 0.28,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    baseAtmosphereOpacity = atmosphereMaterial.opacity;
+    atmosphereMesh = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+    atmosphereMesh.scale.setScalar(1.018);
+    group.add(atmosphereMesh);
+  }
+
   if (shouldFadeIn) {
     surfaceMaterial.transparent = true;
     surfaceMaterial.opacity = 0;
@@ -580,6 +616,11 @@ function populateEarthGroup(group, { shouldFadeIn = false } = {}) {
     } else if (typeof fresnelMaterial.opacity === "number") {
       fresnelMaterial.opacity = 0;
     }
+
+    if (atmosphereMesh) {
+      const atmosphereMaterial = atmosphereMesh.material;
+      atmosphereMaterial.opacity = 0;
+    }
   }
 
   earthMeshSets.push({
@@ -588,12 +629,14 @@ function populateEarthGroup(group, { shouldFadeIn = false } = {}) {
     lightsMesh,
     cloudsMesh,
     glowMesh,
+    atmosphereMesh,
     shouldFadeIn,
     baseOpacities: {
       earth: shouldFadeIn ? baseEarthOpacity || 1 : surfaceMaterial.opacity,
       lights: shouldFadeIn ? baseLightsOpacity || 1 : lightsMaterial.opacity,
       clouds: shouldFadeIn ? baseCloudsOpacity || 0.8 : cloudsMaterial.opacity,
       glow: baseGlowOpacity,
+      atmosphere: baseAtmosphereOpacity,
     },
   });
 }
@@ -650,26 +693,26 @@ function refreshActiveTextureSet(options = {}) {
   earthMeshSets.forEach((earthSet) => applyTextureSetToEarthSet(earthSet, activeTextureSet));
 }
 
-secondEarthGroup = new THREE.Group();
-secondEarthGroup.rotation.z = earthGroup.rotation.z;
-secondEarthGroup.position.copy(EARTH_START_POSITION);
-secondEarthGroup.position.x += CLONE_OFFSET_X;
-secondEarthGroup.scale.setScalar(EARTH_MAX_SCALE);
-scene.add(secondEarthGroup);
-populateEarthGroup(secondEarthGroup, { shouldFadeIn: true });
+function createEarthClone(direction, offsetMultiplier) {
+  const cloneGroup = new THREE.Group();
+  cloneGroup.rotation.z = earthGroup.rotation.z;
+  cloneGroup.position.copy(EARTH_START_POSITION);
+  cloneGroup.position.x += CLONE_OFFSET_X * direction * offsetMultiplier;
+  cloneGroup.scale.setScalar(EARTH_MAX_SCALE);
+  scene.add(cloneGroup);
+  populateEarthGroup(cloneGroup, { shouldFadeIn: true, withAtmosphereOverlay: true });
+  earthCloneGroups.push({ group: cloneGroup, direction, offsetMultiplier });
+}
 
-thirdEarthGroup = new THREE.Group();
-thirdEarthGroup.rotation.z = earthGroup.rotation.z;
-thirdEarthGroup.position.copy(EARTH_START_POSITION);
-thirdEarthGroup.position.x -= CLONE_OFFSET_X;
-thirdEarthGroup.scale.setScalar(EARTH_MAX_SCALE);
-scene.add(thirdEarthGroup);
-populateEarthGroup(thirdEarthGroup, { shouldFadeIn: true });
+for (let i = 1; i <= CLONE_COUNT_PER_SIDE; i += 1) {
+  createEarthClone(1, i);
+  createEarthClone(-1, i);
+}
 
 function updateEarthSetFade(earthSet, factor) {
   if (!earthSet.shouldFadeIn) return;
   const clamped = THREE.MathUtils.clamp(factor, 0, 1);
-  const { baseOpacities, earthMesh, lightsMesh, cloudsMesh, glowMesh } = earthSet;
+  const { baseOpacities, earthMesh, lightsMesh, cloudsMesh, glowMesh, atmosphereMesh } = earthSet;
 
   const earthMaterial = earthMesh.material;
   earthMaterial.opacity = baseOpacities.earth * clamped;
@@ -688,6 +731,11 @@ function updateEarthSetFade(earthSet, factor) {
     glowMaterial.uniforms.opacity.value = baseOpacities.glow * clamped;
   } else if (typeof glowMaterial.opacity === "number") {
     glowMaterial.opacity = baseOpacities.glow * clamped;
+  }
+
+  if (atmosphereMesh) {
+    const atmosphereMaterial = atmosphereMesh.material;
+    atmosphereMaterial.opacity = baseOpacities.atmosphere * clamped;
   }
 }
 
@@ -713,8 +761,7 @@ scene.add(sunLight);
 const rate = 1;
 const targetEarthPos = new THREE.Vector3();
 const targetLookAt = new THREE.Vector3();
-const secondOffsetVector = new THREE.Vector3();
-const thirdOffsetVector = new THREE.Vector3();
+const cloneOffsetVector = new THREE.Vector3();
 
 function animate() {
   requestAnimationFrame(animate);
@@ -768,14 +815,11 @@ function animate() {
   earthGroup.scale.y += (targetScale - earthGroup.scale.y) * rate;
   earthGroup.scale.z += (targetScale - earthGroup.scale.z) * rate;
 
-  secondOffsetVector.set(CLONE_OFFSET_X, 0, 0);
-  thirdOffsetVector.set(-CLONE_OFFSET_X, 0, 0);
-
-  secondEarthGroup.position.copy(earthGroup.position).add(secondOffsetVector);
-  secondEarthGroup.scale.copy(earthGroup.scale);
-
-  thirdEarthGroup.position.copy(earthGroup.position).add(thirdOffsetVector);
-  thirdEarthGroup.scale.copy(earthGroup.scale);
+  earthCloneGroups.forEach(({ group, direction, offsetMultiplier }) => {
+    cloneOffsetVector.set(direction * CLONE_OFFSET_X * offsetMultiplier, 0, 0);
+    group.position.copy(earthGroup.position).add(cloneOffsetVector);
+    group.scale.copy(earthGroup.scale);
+  });
 
 
   controls.target.x += (targetLookAt.x - controls.target.x) * rate;
@@ -1069,7 +1113,7 @@ if (!attachOverlayScrollListener()) {
 
 function handleWindowResize () {
   camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
+  applyCameraLayoutSettings();
   renderer.setPixelRatio(getTargetPixelRatio());
   renderer.setSize(window.innerWidth, window.innerHeight);
   bloomComposer.setPixelRatio(getTargetPixelRatio());
