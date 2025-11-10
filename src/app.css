@@ -189,10 +189,10 @@ body::after {
 
   .overlay__stack {
     min-height: clamp(300px, 50vh, 82vh);
-    padding-bottom: clamp(3rem, 3vh, 4rem);
+    padding-bottom: clamp(3rem, 20vh, 4rem);
     padding-top: clamp(2.5rem, 12vh, 3.5rem);
     gap: clamp(0.9rem, 2vh, 1.15rem);
-    justify-content: center;
+    justify-content: end;
   }
 
   .overlay__spacer {
@@ -208,7 +208,6 @@ body::after {
   }
 
   .overlay__cta {
-    position: fixed;
     bottom: clamp(5.5rem, 18vh, 6.5rem);
     left: 0;
     right: 0;
@@ -247,10 +246,6 @@ body::after {
 
   .overlay__mission {
     margin-bottom: max(4vh, 1.75rem);
-  }
-
-  .overlay__cta {
-    bottom: clamp(3.75rem, 30vh, 10rem);
   }
 }
 
