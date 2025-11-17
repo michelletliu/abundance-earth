@@ -52,11 +52,6 @@ const LOW_RES_TEXTURE_SET = {
   bumpScale: 0.025,
 };
 
-const CLOUD_TEXTURES = {
-  map: "./textures/04_earthcloudmap.jpg",
-  alphaMap: "./textures/05_earthcloudmaptrans.jpg",
-};
-
 const textureCache = new Map();
 const loader = new THREE.TextureLoader();
 const earthMeshSets = [];
@@ -563,18 +558,6 @@ function populateEarthGroup(group, { shouldFadeIn = false, withAtmosphereOverlay
   const lightsMesh = new THREE.Mesh(geometry, lightsMaterial);
   group.add(lightsMesh);
 
-  const cloudsMaterial = new THREE.MeshStandardMaterial({
-    map: loadTexture(CLOUD_TEXTURES.map),
-    transparent: true,
-    opacity: 0.8,
-    blending: THREE.AdditiveBlending,
-    alphaMap: loadTexture(CLOUD_TEXTURES.alphaMap),
-  });
-  const baseCloudsOpacity = cloudsMaterial.opacity;
-  const cloudsMesh = new THREE.Mesh(geometry, cloudsMaterial);
-  cloudsMesh.scale.setScalar(1.003);
-  group.add(cloudsMesh);
-
   const fresnelMaterial = getFresnelMat({ opacity: 0.5 });
   const baseGlowOpacity = fresnelMaterial.uniforms && fresnelMaterial.uniforms.opacity ? fresnelMaterial.uniforms.opacity.value : typeof fresnelMaterial.opacity === "number" ? fresnelMaterial.opacity : 1;
   const glowGeometry = new THREE.SphereGeometry(1, 128, 128);
@@ -607,10 +590,6 @@ function populateEarthGroup(group, { shouldFadeIn = false, withAtmosphereOverlay
     lightsMaterial.opacity = 0;
     lightsMaterial.depthWrite = false;
 
-    cloudsMaterial.transparent = true;
-    cloudsMaterial.opacity = 0;
-    cloudsMaterial.depthWrite = false;
-
     if (fresnelMaterial.uniforms && fresnelMaterial.uniforms.opacity) {
       fresnelMaterial.uniforms.opacity.value = 0;
     } else if (typeof fresnelMaterial.opacity === "number") {
@@ -627,14 +606,12 @@ function populateEarthGroup(group, { shouldFadeIn = false, withAtmosphereOverlay
     group,
     earthMesh,
     lightsMesh,
-    cloudsMesh,
     glowMesh,
     atmosphereMesh,
     shouldFadeIn,
     baseOpacities: {
       earth: shouldFadeIn ? baseEarthOpacity || 1 : surfaceMaterial.opacity,
       lights: shouldFadeIn ? baseLightsOpacity || 1 : lightsMaterial.opacity,
-      clouds: shouldFadeIn ? baseCloudsOpacity || 0.8 : cloudsMaterial.opacity,
       glow: baseGlowOpacity,
       atmosphere: baseAtmosphereOpacity,
     },
@@ -712,7 +689,7 @@ for (let i = 1; i <= CLONE_COUNT_PER_SIDE; i += 1) {
 function updateEarthSetFade(earthSet, factor) {
   if (!earthSet.shouldFadeIn) return;
   const clamped = THREE.MathUtils.clamp(factor, 0, 1);
-  const { baseOpacities, earthMesh, lightsMesh, cloudsMesh, glowMesh, atmosphereMesh } = earthSet;
+  const { baseOpacities, earthMesh, lightsMesh, glowMesh, atmosphereMesh } = earthSet;
 
   const earthMaterial = earthMesh.material;
   earthMaterial.opacity = baseOpacities.earth * clamped;
@@ -721,10 +698,6 @@ function updateEarthSetFade(earthSet, factor) {
   const lightsMaterial = lightsMesh.material;
   lightsMaterial.opacity = baseOpacities.lights * clamped;
   lightsMaterial.depthWrite = clamped > 0.01;
-
-  const cloudsMaterial = cloudsMesh.material;
-  cloudsMaterial.opacity = baseOpacities.clouds * clamped;
-  cloudsMaterial.depthWrite = clamped > 0.01;
 
   const glowMaterial = glowMesh.material;
   if (glowMaterial.uniforms && glowMaterial.uniforms.opacity) {
@@ -799,10 +772,9 @@ function animate() {
   const cloneFade = getLuxFadeFactor(scrollFactor);
 
   earthMeshSets.forEach((earthSet) => {
-    const { earthMesh, lightsMesh, cloudsMesh, glowMesh } = earthSet;
+    const { earthMesh, lightsMesh, glowMesh } = earthSet;
     earthMesh.rotation.y += 0.002;
     lightsMesh.rotation.y += 0.002;
-    cloudsMesh.rotation.y += 0.0023;
     glowMesh.rotation.y += 0.002;
     updateEarthSetFade(earthSet, cloneFade);
   });
