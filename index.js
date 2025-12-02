@@ -53,8 +53,8 @@ const LOW_RES_TEXTURE_SET = {
 };
 
 const CLOUD_TEXTURES = {
-  map: "./textures/04_earthcloudmap.jpg",
-  alphaMap: "./textures/05_earthcloudmaptrans.jpg",
+  map: "./textures/Earth-clouds.png",
+  alphaMap: "./textures/Earth-clouds.png",
 };
 
 const textureCache = new Map();
@@ -566,7 +566,7 @@ function populateEarthGroup(group, { shouldFadeIn = false, withAtmosphereOverlay
   const cloudsMaterial = new THREE.MeshStandardMaterial({
     map: loadTexture(CLOUD_TEXTURES.map),
     transparent: true,
-    opacity: 0.5,
+    opacity: 0.6,
     blending: THREE.AdditiveBlending,
     alphaMap: loadTexture(CLOUD_TEXTURES.alphaMap),
   });
@@ -634,7 +634,7 @@ function populateEarthGroup(group, { shouldFadeIn = false, withAtmosphereOverlay
     baseOpacities: {
       earth: shouldFadeIn ? baseEarthOpacity || 1 : surfaceMaterial.opacity,
       lights: shouldFadeIn ? baseLightsOpacity || 1 : lightsMaterial.opacity,
-      clouds: shouldFadeIn ? baseCloudsOpacity || 0.5 : cloudsMaterial.opacity,
+      clouds: shouldFadeIn ? baseCloudsOpacity || 0.6 : cloudsMaterial.opacity,
       glow: baseGlowOpacity,
       atmosphere: baseAtmosphereOpacity,
     },
