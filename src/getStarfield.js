@@ -34,7 +34,7 @@ export default function getStarfield({ numStars = 500 } = {}) {
   geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
   const mat = new THREE.PointsMaterial({
     size: 0.2,
-    opacity: 0.5,
+    opacity: 1.0,
     transparent: true,
     vertexColors: true,
     map: new THREE.TextureLoader().load(
