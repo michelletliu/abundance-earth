@@ -553,17 +553,30 @@ function populateEarthGroup(group, { shouldFadeIn = false, withAtmosphereOverlay
   const lightsMaterial = new THREE.MeshBasicMaterial({
     map: loadTexture(lightsMap),
     blending: THREE.AdditiveBlending,
+    opacity: 0.2,
+    transparent: true,
   });
   const baseLightsOpacity = lightsMaterial.opacity;
   const lightsMesh = new THREE.Mesh(geometry, lightsMaterial);
   group.add(lightsMesh);
 
-  const fresnelMaterial = getFresnelMat({ opacity: 0.5 });
+  const fresnelMaterial = getFresnelMat({ opacity: 0.1 });
   const baseGlowOpacity = fresnelMaterial.uniforms && fresnelMaterial.uniforms.opacity ? fresnelMaterial.uniforms.opacity.value : typeof fresnelMaterial.opacity === "number" ? fresnelMaterial.opacity : 1;
   const glowGeometry = new THREE.SphereGeometry(1, 128, 128);
   const glowMesh = new THREE.Mesh(glowGeometry, fresnelMaterial);
   glowMesh.scale.setScalar(1.0025);
   group.add(glowMesh);
+
+  // Cloud layer
+  const cloudGeometry = new THREE.SphereGeometry(1.01, 64, 64);
+  const cloudMaterial = new THREE.MeshPhongMaterial({
+    map: loadTexture("./textures/Earth-clouds.png"),
+    transparent: true,
+    opacity: 0.5,
+    depthWrite: false,
+  });
+  const cloudMesh = new THREE.Mesh(cloudGeometry, cloudMaterial);
+  group.add(cloudMesh);
 
   let atmosphereMesh = null;
   let baseAtmosphereOpacity = 0;
@@ -607,6 +620,7 @@ function populateEarthGroup(group, { shouldFadeIn = false, withAtmosphereOverlay
     earthMesh,
     lightsMesh,
     glowMesh,
+    cloudMesh,
     atmosphereMesh,
     shouldFadeIn,
     baseOpacities: {
@@ -681,10 +695,11 @@ function createEarthClone(direction, offsetMultiplier) {
   earthCloneGroups.push({ group: cloneGroup, direction, offsetMultiplier });
 }
 
-for (let i = 1; i <= CLONE_COUNT_PER_SIDE; i += 1) {
-  createEarthClone(1, i);
-  createEarthClone(-1, i);
-}
+// Clones removed - only showing the single center earth
+// for (let i = 1; i <= CLONE_COUNT_PER_SIDE; i += 1) {
+//   createEarthClone(1, i);
+//   createEarthClone(-1, i);
+// }
 
 function updateEarthSetFade(earthSet, factor) {
   if (!earthSet.shouldFadeIn) return;
@@ -772,10 +787,13 @@ function animate() {
   const cloneFade = getLuxFadeFactor(scrollFactor);
 
   earthMeshSets.forEach((earthSet) => {
-    const { earthMesh, lightsMesh, glowMesh } = earthSet;
+    const { earthMesh, lightsMesh, glowMesh, cloudMesh } = earthSet;
     earthMesh.rotation.y += 0.002;
     lightsMesh.rotation.y += 0.002;
     glowMesh.rotation.y += 0.002;
+    if (cloudMesh) {
+      cloudMesh.rotation.y += 0.002;
+    }
     updateEarthSetFade(earthSet, cloneFade);
   });
   stars.rotation.y -= 0.0002;
