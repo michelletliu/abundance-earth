@@ -217,12 +217,12 @@ function updateScrollSpacerHeight() {
 
 function applyScrollBlockingStyles() {
   if (!document.body) return;
-  const overflowValue = bidirectionalScrollSyncEnabled ? "" : "hidden";
-  const heightValue = bidirectionalScrollSyncEnabled ? "" : "100%";
-  document.documentElement.style.overflowY = overflowValue;
-  document.documentElement.style.height = heightValue;
-  document.body.style.overflowY = overflowValue;
-  document.body.style.height = heightValue;
+  // Always keep overflow hidden to prevent window scrollbar
+  // Wheel events will be handled separately for bidirectional sync
+  document.documentElement.style.overflowY = "hidden";
+  document.documentElement.style.height = "100%";
+  document.body.style.overflowY = "hidden";
+  document.body.style.height = "100%";
 }
 
 function refreshScrollSyncMode() {
@@ -233,6 +233,7 @@ function refreshScrollSyncMode() {
   updateScrollSpacerHeight();
   applyScrollBlockingStyles();
   refreshActiveTextureSet();
+  setupWheelHandler();
 
   if (bidirectionalScrollSyncEnabled) {
     syncScrollFromWindow();
@@ -1090,6 +1091,49 @@ function syncScrollFromOverlay(event) {
   isSyncingFromOverlay = false;
 }
 
+// Handle wheel events for bidirectional scroll sync when window scrolling is disabled
+let wheelHandler = null;
+
+function setupWheelHandler() {
+  if (wheelHandler) {
+    window.removeEventListener("wheel", wheelHandler, { passive: false });
+    wheelHandler = null;
+  }
+
+  if (!bidirectionalScrollSyncEnabled || !overlayContent) return;
+
+  wheelHandler = (event) => {
+    if (!overlayContent) return;
+    if (isSyncingFromOverlay) return;
+    
+    const maxOverlayScroll = overlayContent.scrollHeight - overlayContent.clientHeight;
+    if (maxOverlayScroll <= 0) return;
+
+    // Check if the event target is within the overlay content
+    const target = event.target;
+    if (target && target.closest && target.closest('.overlay__content')) {
+      // Let the overlay handle its own scrolling
+      return;
+    }
+
+    // Translate wheel event to overlay scroll
+    const deltaY = event.deltaY;
+    const currentScrollTop = overlayContent.scrollTop;
+    const newScrollTop = Math.max(0, Math.min(maxOverlayScroll, currentScrollTop + deltaY));
+    
+    if (Math.abs(newScrollTop - currentScrollTop) > 0.5) {
+      isSyncingFromWindow = true;
+      overlayContent.scrollTop = newScrollTop;
+      // The overlay scroll event will trigger syncScrollFromOverlay automatically
+      isSyncingFromWindow = false;
+      event.preventDefault();
+    }
+  };
+
+  window.addEventListener("wheel", wheelHandler, { passive: false });
+}
+
+// Keep scroll listener for cases where window might scroll (though it shouldn't)
 window.addEventListener("scroll", syncScrollFromWindow);
 syncScrollFromWindow();
 
@@ -1104,6 +1148,7 @@ const attachOverlayScrollListener = () => {
   overlayContent.addEventListener("scroll", syncScrollFromOverlay, { passive: true });
   attachOverlayDragHandlers(overlayContent);
   initOverlayFadeAnimations();
+  setupWheelHandler();
   syncScrollFromWindow();
   return true;
 };

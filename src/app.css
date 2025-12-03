@@ -1,5 +1,7 @@
 html {
   overflow-x: hidden;
+  overflow-y: hidden;
+  height: 100%;
 }
 
 *,
@@ -39,7 +41,8 @@ html {
 body {
   margin: 0;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: hidden;
+  height: 100%;
   --scroll-spacer-height: 0vh;
   font-family: var(--font-body);
 }
